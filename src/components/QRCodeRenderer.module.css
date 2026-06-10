@@ -1,0 +1,26 @@
+.canvas {
+  display: block;
+  border-radius: var(--r-sm);
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.placeholder,
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--sp-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+
+.error {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
+}

@@ -1,0 +1,98 @@
+.main {
+  flex: 1;
+  width: 100%;
+  padding-top: var(--sp-6);
+  padding-bottom: var(--sp-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.banner {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  color: var(--warn);
+  line-height: 1.45;
+}
+.banner svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-6);
+}
+
+.cardTitle {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: var(--sp-4);
+}
+
+.previewCard {
+  position: sticky;
+  top: var(--sp-5);
+}
+
+.librarySection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.sectionTitle {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.sectionCount {
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+  font-weight: 600;
+}
+
+.footer {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.footerInner {
+  padding: var(--sp-5) 0;
+  font-size: 0.8rem;
+  color: var(--text-subtle);
+  text-align: center;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .previewCard {
+    position: static;
+  }
+}
