@@ -36,24 +36,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-function roundRectPath(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-): void {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
-}
-
-/** Composite a centred logo (with a white padded background) onto the canvas. */
+/** Composite a centred logo directly onto the canvas (no background fill). */
 async function drawCenterLogo(
   canvas: HTMLCanvasElement,
   logoDataUrl: string,
@@ -65,11 +48,6 @@ async function drawCenterLogo(
   const box = Math.round(canvas.width * 0.22)
   const x = Math.round((canvas.width - box) / 2)
   const y = Math.round((canvas.height - box) / 2)
-  const pad = Math.round(box * 0.14)
-
-  ctx.fillStyle = QR_LIGHT
-  roundRectPath(ctx, x - pad, y - pad, box + pad * 2, box + pad * 2, Math.round(box * 0.16))
-  ctx.fill()
 
   const ratio = Math.min(box / img.width, box / img.height)
   const w = img.width * ratio
@@ -128,11 +106,7 @@ function injectSvgLogo(svg: string, logoDataUrl: string): string {
   const vb = parseFloat(match[1])
   const box = vb * 0.22
   const pos = (vb - box) / 2
-  const pad = box * 0.14
   const overlay =
-    `<rect x="${pos - pad}" y="${pos - pad}" width="${box + pad * 2}" height="${
-      box + pad * 2
-    }" rx="${box * 0.16}" fill="${QR_LIGHT}"/>` +
     `<image href="${logoDataUrl}" x="${pos}" y="${pos}" width="${box}" height="${box}" preserveAspectRatio="xMidYMid meet"/>`
   return svg.replace('</svg>', `${overlay}</svg>`)
 }

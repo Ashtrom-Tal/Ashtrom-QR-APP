@@ -1,5 +1,4 @@
-import type { CSSProperties } from 'react'
-import type { ExportSettings, LogoPosition, QRItem } from '../types'
+import type { ExportSettings, QRItem } from '../types'
 import {
   FONT_FAMILY_CSS,
   FONT_SCALE_FACTOR,
@@ -16,19 +15,6 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
   return out
-}
-
-function logoStyle(position: LogoPosition): CSSProperties {
-  const s: CSSProperties = {}
-  if (position.startsWith('top')) s.top = '3.5%'
-  else s.bottom = '4.5%'
-  if (position.endsWith('left')) s.left = '4%'
-  else if (position.endsWith('right')) s.right = '4%'
-  else {
-    s.left = '50%'
-    s.transform = 'translateX(-50%)'
-  }
-  return s
 }
 
 interface PDFPreviewProps {
@@ -61,10 +47,6 @@ export function PDFPreview({ items, settings }: PDFPreviewProps) {
   const qrPx = dense ? Math.min(baseQr, 44) : baseQr
   const fontPx = (dense || tpl.compact ? 7 : 9) * k
 
-  const visibleLogos = settings.logos.filter((l) => !!l.dataUrl)
-  const hasTopLogo = visibleLogos.some((l) => l.position.startsWith('top'))
-  const hasBottomLogo = visibleLogos.some((l) => l.position.startsWith('bottom'))
-
   const hasHeader =
     !!settings.pdfTitle.trim() ||
     !!settings.pdfSubtitle.trim() ||
@@ -78,24 +60,7 @@ export function PDFPreview({ items, settings }: PDFPreviewProps) {
             className={styles.page}
             style={{ aspectRatio: `${pw} / ${ph}`, padding: `${marginPct}%` }}
           >
-            {visibleLogos.map((logo, i) => (
-              <img
-                key={i}
-                className={styles.logo}
-                src={logo.dataUrl}
-                alt=""
-                style={logoStyle(logo.position)}
-              />
-            ))}
-
-            <div
-              className={styles.gridWrap}
-              style={{
-                height: '100%',
-                paddingTop: hasTopLogo ? '9%' : undefined,
-                paddingBottom: hasBottomLogo ? '9%' : undefined,
-              }}
-            >
+            <div className={styles.gridWrap} style={{ height: '100%' }}>
               {pageIndex === 0 && hasHeader && (
                 <div className={styles.header}>
                   {settings.pdfTitle.trim() && (

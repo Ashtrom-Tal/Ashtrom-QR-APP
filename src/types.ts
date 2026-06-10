@@ -43,8 +43,8 @@ export type LogoPosition =
   | 'bottom-center'
   | 'bottom-right'
 
-/** Built-in jsPDF fonts that we expose to the user. */
-export type FontFamily = 'helvetica' | 'times' | 'courier'
+/** Fonts available to the user. `heebo` is the Hebrew-capable family. */
+export type FontFamily = 'helvetica' | 'times' | 'courier' | 'heebo'
 
 /** One uploaded page logo. Position is persisted; dataUrl is per-session. */
 export interface PdfLogo {

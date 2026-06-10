@@ -104,7 +104,7 @@ export const ACCEPTED_LOGO_TYPES = 'image/png,image/jpeg,image/svg+xml'
 
 /* ---------- Typography ---------- */
 
-/** Built-in jsPDF fonts. CSS family is used for the live preview. */
+/** Available fonts. CSS family is used for the live preview. */
 export const FONT_OPTIONS: {
   value: FontFamily
   label: string
@@ -113,6 +113,7 @@ export const FONT_OPTIONS: {
   { value: 'helvetica', label: 'Helvetica (modern sans)', css: 'Helvetica, Arial, sans-serif' },
   { value: 'times', label: 'Times (classic serif)', css: '"Times New Roman", Times, serif' },
   { value: 'courier', label: 'Courier (monospace)', css: '"Courier New", Courier, monospace' },
+  { value: 'heebo', label: 'Heebo (Hebrew + Latin)', css: 'Heebo, Arial, sans-serif' },
 ]
 
 export const FONT_FAMILY_CSS: Record<FontFamily, string> = FONT_OPTIONS.reduce(

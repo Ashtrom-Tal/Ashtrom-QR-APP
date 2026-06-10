@@ -15,6 +15,7 @@ import {
 } from '../constants'
 import { generateQrPngDataUrl, qrLevelFor } from './qr'
 import { formatDate, isoDateStamp, sanitizeFilename } from './format'
+import { ensureHebrewFont, fontFor, hasRtl } from './pdfFonts'
 
 type RGB = [number, number, number]
 const TEXT: RGB = [15, 23, 42]
@@ -94,8 +95,7 @@ function buildLabelLines(
   ) => {
     const value = (text ?? '').trim()
     if (!value) return
-    doc.setFont(font, bold ? 'bold' : 'normal')
-    doc.setFontSize(size)
+    pickFont(doc, value, font, bold, size)
     lines.push({ text: truncate(doc, value, innerW), size, bold, color })
   }
 
@@ -105,10 +105,10 @@ function buildLabelLines(
   if (f.area) push(item.area, base, MUTED)
 
   if (f.description && item.description?.trim()) {
-    doc.setFont(font, 'normal')
-    doc.setFontSize(base)
+    const desc = item.description.trim()
+    pickFont(doc, desc, font, false, base)
     const maxLines = compact ? 1 : 2
-    const wrapped: string[] = doc.splitTextToSize(item.description.trim(), innerW)
+    const wrapped: string[] = doc.splitTextToSize(desc, innerW)
     wrapped.slice(0, maxLines).forEach((raw, i) => {
       const text =
         i === maxLines - 1 && wrapped.length > maxLines
@@ -127,6 +127,33 @@ function buildLabelLines(
 
 function setColor(doc: jsPDF, c: RGB): void {
   doc.setTextColor(c[0], c[1], c[2])
+}
+
+/** setFont + setFontSize, swapping to Heebo when the text is RTL. */
+function pickFont(
+  doc: jsPDF,
+  text: string,
+  latinFont: string,
+  bold: boolean,
+  size: number,
+): void {
+  doc.setFont(fontFor(text, latinFont), bold ? 'bold' : 'normal')
+  doc.setFontSize(size)
+}
+
+/** doc.text wrapper that flips RTL strings so Hebrew reads right-to-left. */
+function drawText(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  options?: { align?: 'left' | 'center' | 'right' },
+): void {
+  if (hasRtl(text)) {
+    doc.text(text, x, y, { ...options, isInputRtl: true } as never)
+  } else {
+    doc.text(text, x, y, options)
+  }
 }
 
 /** Default, sanitised PDF filename. */
@@ -178,13 +205,13 @@ export async function exportToPdf(
     )
   }
 
-  // 2. Rasterise the page logos (up to 2). Drop any with no uploaded image.
-  const pageLogos: ResolvedLogo[] = []
+  // 2. Rasterise the cell logos (up to 2). Drop any with no uploaded image.
+  const cellLogos: ResolvedLogo[] = []
   for (const logo of settings.logos) {
     if (!logo.dataUrl) continue
     try {
       const raster = await rasterizeLogo(logo.dataUrl)
-      pageLogos.push({ ...raster, position: logo.position })
+      cellLogos.push({ ...raster, position: logo.position })
     } catch {
       /* skip a broken upload */
     }
@@ -199,6 +226,8 @@ export async function exportToPdf(
     unit: 'mm',
     format: settings.pageSize,
   })
+  // Make Heebo available before any text is measured or drawn.
+  await ensureHebrewFont(doc)
   const W = doc.internal.pageSize.getWidth()
   const H = doc.internal.pageSize.getHeight()
   const m = MARGIN_MM[settings.margin]
@@ -209,26 +238,6 @@ export async function exportToPdf(
   const perPage = cols * rows
   const totalPages = Math.ceil(items.length / perPage)
 
-  // Logo geometry (each logo's box, with side-of-page bookkeeping).
-  const LOGO_W = 24
-  const LOGO_H_MAX = 16
-  const placedLogos = pageLogos.map((l) => {
-    let w = LOGO_W
-    let h = LOGO_W / l.aspect
-    if (h > LOGO_H_MAX) {
-      h = LOGO_H_MAX
-      w = LOGO_H_MAX * l.aspect
-    }
-    return { ...l, w, h }
-  })
-
-  const topLogos = placedLogos.filter((l) => l.position.startsWith('top'))
-  const bottomLogos = placedLogos.filter((l) => l.position.startsWith('bottom'))
-  const topBand = topLogos.length ? Math.max(...topLogos.map((l) => l.h)) + 3 : 0
-  const bottomBand = bottomLogos.length
-    ? Math.max(...bottomLogos.map((l) => l.h)) + 3
-    : 0
-
   // Header block (page 1 only).
   const hasTitle = !!settings.pdfTitle.trim()
   const hasSub = !!settings.pdfSubtitle.trim()
@@ -236,8 +245,8 @@ export async function exportToPdf(
   const titleSize = 16 * k
   const subSize = 10.5 * k
   const noteSize = 9 * k
-  doc.setFont(font, 'normal')
-  doc.setFontSize(noteSize)
+  if (hasNote) pickFont(doc, settings.customNote, font, false, noteSize)
+  else doc.setFontSize(noteSize)
   const noteLines: string[] = hasNote
     ? doc.splitTextToSize(settings.customNote.trim(), contentW)
     : []
@@ -251,63 +260,67 @@ export async function exportToPdf(
   const footerSize = 8 * k
 
   function drawPageChrome(pageIndex: number): void {
-    // All page logos (repeated on every page).
-    for (const l of placedLogos) {
-      let lx = m
-      if (l.position.endsWith('center')) lx = (W - l.w) / 2
-      else if (l.position.endsWith('right')) lx = W - m - l.w
-      const ly = l.position.startsWith('top') ? m : H - m - l.h
-      doc.addImage(l.url, 'PNG', lx, ly, l.w, l.h)
-    }
-
     // First-page header.
     if (pageIndex === 0 && headerH > 0) {
-      let y = m + topBand
+      let y = m
       const cx = m + contentW / 2
       if (hasTitle) {
-        doc.setFont(font, 'bold')
-        doc.setFontSize(titleSize)
+        const t = settings.pdfTitle.trim()
+        pickFont(doc, t, font, true, titleSize)
         setColor(doc, TEXT)
-        doc.text(settings.pdfTitle.trim(), cx, y + lineHeight(titleSize) * 0.7, {
-          align: 'center',
-        })
+        drawText(doc, t, cx, y + lineHeight(titleSize) * 0.7, { align: 'center' })
         y += lineHeight(titleSize) + 1
       }
       if (hasSub) {
-        doc.setFont(font, 'normal')
-        doc.setFontSize(subSize)
+        const s = settings.pdfSubtitle.trim()
+        pickFont(doc, s, font, false, subSize)
         setColor(doc, MUTED)
-        doc.text(settings.pdfSubtitle.trim(), cx, y + lineHeight(subSize) * 0.7, {
-          align: 'center',
-        })
+        drawText(doc, s, cx, y + lineHeight(subSize) * 0.7, { align: 'center' })
         y += lineHeight(subSize) + 0.5
       }
       if (hasNote) {
-        doc.setFont(font, 'normal')
-        doc.setFontSize(noteSize)
         setColor(doc, MUTED)
         noteLines.forEach((ln) => {
-          doc.text(ln, cx, y + lineHeight(noteSize) * 0.7, { align: 'center' })
+          pickFont(doc, ln, font, false, noteSize)
+          drawText(doc, ln, cx, y + lineHeight(noteSize) * 0.7, { align: 'center' })
           y += lineHeight(noteSize)
         })
       }
     }
 
     // Footer: custom text (left) + page numbers (right).
-    doc.setFont(font, 'normal')
-    doc.setFontSize(footerSize)
     setColor(doc, MUTED)
     const fy = H - m + 4
     if (hasFooter) {
-      doc.text(truncate(doc, settings.footerText.trim(), contentW - 30), m, fy)
+      const ft = truncate(doc, settings.footerText.trim(), contentW - 30)
+      pickFont(doc, ft, font, false, footerSize)
+      drawText(doc, ft, m, fy)
     }
+    doc.setFont(font, 'normal')
+    doc.setFontSize(footerSize)
     doc.text(`Page ${pageIndex + 1} of ${totalPages}`, W - m, fy, { align: 'right' })
   }
 
   function gridRect(pageIndex: number) {
-    const top = m + topBand + (pageIndex === 0 ? headerH : 0)
-    const bottom = H - m - bottomBand
+    const top = m + (pageIndex === 0 ? headerH : 0)
+    const bottom = H - m
     return { x: m, y: top, w: contentW, h: bottom - top }
+  }
+
+  /** Resolve logo sizes for a given cell width. */
+  function sizedCellLogos(cw: number): { logo: ResolvedLogo; w: number; h: number }[] {
+    if (!cellLogos.length) return []
+    const maxW = cw * 0.28
+    const maxH = compact ? 6 : 9
+    return cellLogos.map((logo) => {
+      let w = maxW
+      let h = w / logo.aspect
+      if (h > maxH) {
+        h = maxH
+        w = h * logo.aspect
+      }
+      return { logo, w, h }
+    })
   }
 
   function drawCell(
@@ -325,16 +338,44 @@ export async function exportToPdf(
     const innerW = cw - pad * 2
     const cx = cx0 + cw / 2
 
+    // Per-cell logos: reserve top/bottom bands inside the cell.
+    const sized = sizedCellLogos(cw)
+    const topLogos = sized.filter((s) => s.logo.position.startsWith('top'))
+    const bottomLogos = sized.filter((s) => s.logo.position.startsWith('bottom'))
+    const topBand = topLogos.length ? Math.max(...topLogos.map((s) => s.h)) + 1.5 : 0
+    const bottomBand = bottomLogos.length
+      ? Math.max(...bottomLogos.map((s) => s.h)) + 1.5
+      : 0
+
+    // Draw the top logos pinned to the top of the cell.
+    for (const s of topLogos) {
+      let lx = cx0 + pad
+      if (s.logo.position.endsWith('center')) lx = cx - s.w / 2
+      else if (s.logo.position.endsWith('right')) lx = cx0 + cw - pad - s.w
+      doc.addImage(s.logo.url, 'PNG', lx, cy0 + pad, s.w, s.h)
+    }
+    // Draw the bottom logos pinned to the bottom of the cell.
+    for (const s of bottomLogos) {
+      let lx = cx0 + pad
+      if (s.logo.position.endsWith('center')) lx = cx - s.w / 2
+      else if (s.logo.position.endsWith('right')) lx = cx0 + cw - pad - s.w
+      doc.addImage(s.logo.url, 'PNG', lx, cy0 + ch - pad - s.h, s.w, s.h)
+    }
+
     const lines = buildLabelLines(doc, item, settings, innerW, compact, font)
     const textH = lines.reduce((sum, l) => sum + lineHeight(l.size), 0)
 
+    const usableTop = cy0 + pad + topBand
+    const usableBottom = cy0 + ch - pad - bottomBand
+    const usableH = usableBottom - usableTop
+
     let qrEdge = Math.min(QR_SIZE_MM[settings.qrSize], innerW)
-    const maxQr = ch - pad * 2 - textH - 2
+    const maxQr = usableH - textH - (lines.length ? 2.5 : 0)
     if (qrEdge > maxQr) qrEdge = Math.max(maxQr, 12)
 
     const blockH = qrEdge + (lines.length ? 2.5 : 0) + textH
-    let top = cy0 + (ch - blockH) / 2
-    if (top < cy0 + pad) top = cy0 + pad
+    let top = usableTop + (usableH - blockH) / 2
+    if (top < usableTop) top = usableTop
 
     const png = pngById.get(item.id)
     if (png) {
@@ -343,10 +384,9 @@ export async function exportToPdf(
 
     let ty = top + qrEdge + 3
     for (const l of lines) {
-      doc.setFont(font, l.bold ? 'bold' : 'normal')
-      doc.setFontSize(l.size)
+      pickFont(doc, l.text, font, !!l.bold, l.size)
       setColor(doc, l.color)
-      doc.text(l.text, cx, ty, { align: 'center' })
+      drawText(doc, l.text, cx, ty, { align: 'center' })
       ty += lineHeight(l.size)
     }
   }
